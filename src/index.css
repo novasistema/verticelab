@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Identidad Vértice Lab */
+@theme {
+  --color-ink: #0d1117;
+  --color-ink-2: #161b22;
+  --color-ink-line: #2a313c;
+  --color-ink-line-2: #3a424f;
+  --color-on-ink: #f2f3f5;
+  --color-on-ink-2: #c9ced6;
+  --color-on-ink-muted: #a3aab5;
+  --color-paper: #f6f5f1;
+  --color-paper-line: #e2e0d8;
+  --color-paper-line-2: #d6d3c9;
+  --color-text: #14171c;
+  --color-text-muted: #555b66;
+  --color-gold: #e3a82b;
+  --color-gold-dark: #8a5a00;
+
+  --font-display: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-label: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Animaciones usadas por Mi Dinero */
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
