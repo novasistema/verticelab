@@ -25,7 +25,9 @@ Analiza el texto o ticket recibido y responde ÚNICAMENTE con un objeto JSON vá
   "description": resumen breve del concepto,
   "paymentMethod": una de ["efectivo", "tarjeta", "transferencia", "bizum"],
   "notes": detalle adicional opcional
-}`,
+}
+Si recibes la foto de un ticket o comprobante, usa el TOTAL final pagado (no subtotales) y pon el nombre del comercio en "description".
+Los montos pueden venir con punto como separador de miles y coma para decimales (ej: 12.500,50 = 12500.50). Devuelve "amount" como número sin separadores de miles.`,
 };
 
 function vigente(a) {

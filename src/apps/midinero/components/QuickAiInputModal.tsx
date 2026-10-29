@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Sparkles, Camera, X, Check, Loader2, UploadCloud } from 'lucide-react';
 import { Transaction, CategoryId, PaymentMethod, TransactionType } from '../types';
 import { CATEGORIES } from '../data/categories';
@@ -19,8 +19,60 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [detectedTx, setDetectedTx] = useState<Omit<Transaction, 'id'> | null>(null);
+  const [fromAi, setFromAi] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  // Llama a la función segura del servidor (/api/gemini). Devuelve null si no se pudo.
+  const askAi = async (payload: { prompt?: string; imageBase64?: string }) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return null;
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ app: 'midinero', ...payload }),
+    });
+    if (!response.ok) return null;
+    const resJson = await response.json();
+    const d = resJson?.data;
+    if (!d || !Number(d.amount)) return null;
+    return {
+      type: d.type === 'ingreso' ? 'ingreso' : 'gasto',
+      amount: Number(d.amount) || 0,
+      categoryId: CATEGORIES.some((c) => c.id === d.categoryId) ? d.categoryId : 'otros',
+      description: d.description || payload.prompt || 'Ticket escaneado',
+      date: new Date().toISOString().split('T')[0],
+      paymentMethod: d.paymentMethod || 'tarjeta',
+      notes: d.notes || 'Analizado con IA',
+    } as Omit<Transaction, 'id'>;
+  };
+
+  // Achica la foto antes de enviarla (más rápido y dentro del límite del servidor).
+  const imageToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const max = 1600;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('canvas'));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('imagen'));
+      };
+      img.src = url;
+    });
 
   const fallbackLocalParser = (text: string) => {
     const lower = text.toLowerCase();
@@ -32,8 +84,16 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
     }
 
     // Extract Amount
-    const amountMatch = text.match(/(\d+([.,]\d{1,2})?)/);
-    const amount = amountMatch ? parseFloat(amountMatch[1].replace(',', '.')) : 25.0;
+    // Acepta formatos como 12500, 12.500, 12.500,50 o 18.50
+    const amountMatch = text.match(/\d[\d.,]*/);
+    let amount = 0;
+    if (amountMatch) {
+      let raw = amountMatch[0].replace(/[.,]$/, '');
+      if (raw.includes(',') && raw.includes('.')) raw = raw.replace(/\./g, '').replace(',', '.');
+      else if (raw.includes(',')) raw = /,\d{3}$/.test(raw) ? raw.replace(/,/g, '') : raw.replace(',', '.');
+      else if (/\.\d{3}(\.|$)/.test(raw)) raw = raw.replace(/\./g, '');
+      amount = parseFloat(raw) || 0;
+    }
 
     // Determine Category
     let categoryId: CategoryId = 'otros';
@@ -76,67 +136,46 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
 
   const handleParseText = async () => {
     if (!inputText.trim()) return;
+    setError('');
     setIsProcessing(true);
-
     try {
-      // 1. Obtener token de sesión de Supabase
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      if (token) {
-        // Intentar invocar la API segura de servidor
-        const response = await fetch('/api/gemini', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ app: 'midinero', prompt: inputText }),
-        });
-
-        if (response.ok) {
-          const resJson = await response.json();
-          if (resJson?.data && resJson.data.amount) {
-            setDetectedTx({
-              type: resJson.data.type || 'gasto',
-              amount: Number(resJson.data.amount) || 0,
-              categoryId: resJson.data.categoryId || 'otros',
-              description: resJson.data.description || inputText,
-              date: new Date().toISOString().split('T')[0],
-              paymentMethod: resJson.data.paymentMethod || 'tarjeta',
-              notes: resJson.data.notes || 'Procesado con Gemini AI mediante backend protegido',
-            });
-            setIsProcessing(false);
-            return;
-          }
-        }
+      const tx = await askAi({ prompt: inputText });
+      if (tx) {
+        setFromAi(true);
+        setDetectedTx(tx);
+        setIsProcessing(false);
+        return;
       }
     } catch {
-      // Si la API de backend no está montada localmente o falla, continuar al fallback local
+      // sin conexión con la IA: seguimos con el analizador local
     }
-
-    // Fallback heurístico inteligente
-    const parsed = fallbackLocalParser(inputText);
-    setDetectedTx(parsed);
+    setFromAi(false);
+    setDetectedTx(fallbackLocalParser(inputText));
     setIsProcessing(false);
   };
 
-  const handleSimulateReceiptUpload = async () => {
+  const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
     setIsProcessing(true);
-    const today = new Date().toISOString().split('T')[0];
-    
-    setTimeout(() => {
-      setDetectedTx({
-        type: 'gasto',
-        amount: 48.75,
-        categoryId: 'supermercado',
-        description: 'Mercadona - Ticket de compra analizado',
-        date: today,
-        paymentMethod: 'tarjeta',
-        notes: 'Escaneado automático de ticket: Productos frescos, lácteos y verduras.',
+    try {
+      const imageBase64 = await imageToBase64(file);
+      const tx = await askAi({
+        imageBase64,
+        prompt: 'Analiza este ticket o comprobante de compra y extrae el total pagado y el comercio.',
       });
-      setIsProcessing(false);
-    }, 900);
+      if (tx) {
+        setFromAi(true);
+        setDetectedTx(tx);
+      } else {
+        setError('No pudimos leer el ticket. Probá con una foto más nítida y con buena luz, o escribí el gasto.');
+      }
+    } catch {
+      setError('No pudimos procesar la imagen. Probá de nuevo o escribí el gasto.');
+    }
+    setIsProcessing(false);
   };
 
   const handleConfirm = () => {
@@ -145,6 +184,7 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
       onClose();
       setDetectedTx(null);
       setInputText('');
+      setError('');
     }
   };
 
@@ -181,7 +221,7 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Ej: Compré medicinas en la farmacia por 18.50€ en tarjeta..."
+                  placeholder="Ej: Gasté $12.500 en el supermercado con tarjeta..."
                   className="w-full h-28 bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 />
               </div>
@@ -205,26 +245,40 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
                   )}
                 </button>
 
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleReceiptFile}
+                />
                 <button
-                  onClick={handleSimulateReceiptUpload}
+                  onClick={() => fileRef.current?.click()}
                   disabled={isProcessing}
                   className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-sm transition flex items-center gap-2 border border-slate-700"
-                  title="Simular escaneo de ticket"
+                  title="Sacar o subir una foto del ticket"
                 >
                   <Camera className="w-4 h-4 text-teal-400" />
                   Escanear Ticket
                 </button>
               </div>
 
+              {error && (
+                <p role="alert" className="text-xs text-rose-300 bg-rose-950/40 border border-rose-500/30 rounded-xl p-3">
+                  {error}
+                </p>
+              )}
+
               <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800/80">
-                <p className="text-xs font-semibold text-slate-400 mb-1">Ejemplos probados:</p>
+                <p className="text-xs font-semibold text-slate-400 mb-1">Ejemplos:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     '$4200 supermercado en tarjeta',
                     'Pago impuestos $18000',
                     'Cena ocio $2500 transferencia',
                     'Farmacia $1230',
-                    'Nómina salario $285000',
+                    'Cobré el sueldo $850000',
                   ].map((example, idx) => (
                     <button
                       key={idx}
@@ -242,7 +296,7 @@ export const QuickAiInputModal: React.FC<QuickAiInputModalProps> = ({
               <div className="bg-teal-950/30 border border-teal-500/30 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs font-semibold text-teal-400">
                   <span className="flex items-center gap-1">
-                    <Check className="w-4 h-4" /> Datos detectados con precisión
+                    <Check className="w-4 h-4" /> {fromAi ? 'Datos detectados con IA' : 'Revisá los datos antes de guardar'}
                   </span>
                   <span className="uppercase tracking-wider px-2 py-0.5 rounded bg-teal-500/20">
                     {detectedTx.type}
