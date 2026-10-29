@@ -21,6 +21,8 @@ export interface Producto {
   precio: number | null;
   moneda: string;
   archivo: string | null;
+  imagen?: string | null;
+  link_compra?: string | null;
   orden: number;
 }
 
@@ -34,7 +36,7 @@ export async function cargarProductos(): Promise<Producto[]> {
   if (!isSupabaseConfigured) return [];
   const { data, error } = await supabase
     .from('productos')
-    .select('slug, tipo, nombre, descripcion, precio, moneda, archivo, orden')
+    .select('*')
     .order('orden', { ascending: true });
   if (error) {
     console.error('No se pudo cargar el catálogo:', error.message);

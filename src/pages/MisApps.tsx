@@ -135,10 +135,20 @@ function MiProducto({ p }: { p: Producto }) {
 
   return (
     <article className="flex-[1_1_300px] min-w-0 bg-white border border-paper-line rounded-[10px] p-6 box-border flex flex-col gap-4">
-      <div className="h-[120px] bg-ink rounded-md p-5 box-border flex flex-col justify-between" aria-hidden="true">
-        <div className="w-7 h-1 bg-gold" />
-        <span className="font-display font-extrabold text-xl text-on-ink leading-[1.05]">{p.nombre}</span>
-      </div>
+      {p.imagen ? (
+        <img
+          src={p.imagen}
+          alt={`Portada de ${p.nombre}`}
+          width={600}
+          height={600}
+          className="w-full max-w-[260px] aspect-square object-cover rounded-md border border-paper-line"
+        />
+      ) : (
+        <div className="h-[120px] bg-ink rounded-md p-5 box-border flex flex-col justify-between" aria-hidden="true">
+          <div className="w-7 h-1 bg-gold" />
+          <span className="font-display font-extrabold text-xl text-on-ink leading-[1.05]">{p.nombre}</span>
+        </div>
+      )}
       <h3 className="m-0 font-display font-bold text-xl">{p.nombre}</h3>
       {error && <p role="alert" className="m-0 text-sm text-[#a3172f]">{error}</p>}
       <button type="button" onClick={descargar} disabled={descargando} className={`${btn.ink} self-start`}>

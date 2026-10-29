@@ -341,9 +341,19 @@ function EmptyCard({ text }: { text: string }) {
 
 function ProductCard({ p, owned }: { p: Producto; owned: boolean }) {
   const consulta = whatsappLink(`Hola, quiero comprar ${p.nombre} de Vértice Lab.`);
+  const compra = p.link_compra || consulta;
   return (
     <article className="flex-[1_1_300px] max-w-full min-w-0 bg-white border border-paper-line rounded-[10px] p-7 box-border flex flex-col gap-3.5">
-      {p.tipo === 'ebook' ? (
+      {p.imagen ? (
+        <img
+          src={p.imagen}
+          alt={`Portada de ${p.nombre}`}
+          loading="lazy"
+          width={600}
+          height={600}
+          className="w-full aspect-square object-cover rounded-md border border-paper-line"
+        />
+      ) : p.tipo === 'ebook' ? (
         <div className="h-[150px] bg-ink rounded-md p-5 box-border flex flex-col justify-between" aria-hidden="true">
           <div className="w-7 h-1 bg-gold" />
           <span className="font-display font-extrabold text-[22px] text-on-ink leading-[1.05]">{p.nombre}</span>
@@ -361,9 +371,9 @@ function ProductCard({ p, owned }: { p: Producto; owned: boolean }) {
           <Link to={p.tipo === 'app' ? `/apps/${p.slug}` : '/mis-apps'} className={`${btn.ink} min-h-[44px] px-[18px] text-[15px]`}>
             {p.tipo === 'app' ? 'Abrir' : 'Descargar'}
           </Link>
-        ) : consulta ? (
-          <a href={consulta} target="_blank" rel="noopener noreferrer" className={`${btn.gold} min-h-[44px] px-[18px] text-[15px]`}>
-            Quiero acceso
+        ) : compra ? (
+          <a href={compra} target="_blank" rel="noopener noreferrer" className={`${btn.gold} min-h-[44px] px-[18px] text-[15px]`}>
+            {p.link_compra ? 'Comprar' : 'Quiero acceso'}
           </a>
         ) : (
           <span className="text-sm font-semibold text-gold-dark">Muy pronto</span>
