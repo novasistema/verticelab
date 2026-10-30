@@ -64,6 +64,7 @@ export function formatearPrecio(p: Producto): string {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency: p.moneda || 'ARS',
-    maximumFractionDigits: 0,
-  }).format(p.precio);
+    minimumFractionDigits: Number.isInteger(Number(p.precio)) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(Number(p.precio));
 }
