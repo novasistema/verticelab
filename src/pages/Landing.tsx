@@ -208,7 +208,7 @@ export default function Landing() {
           </div>
 
           <h3 className="font-display font-bold text-xl mt-0 mb-5">Micro apps</h3>
-          <div className="flex flex-wrap gap-5 mb-14">
+          <div className="grid gap-5 grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] mb-14">
             {productos === null && <CatalogSkeleton />}
             {productos !== null && apps.length === 0 && (
               <EmptyCard text="Muy pronto, las primeras micro apps." />
@@ -219,7 +219,7 @@ export default function Landing() {
           </div>
 
           <h3 className="font-display font-bold text-xl mt-0 mb-5">Ebooks</h3>
-          <div className="flex flex-wrap gap-5">
+          <div className="grid gap-5 grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))]">
             {productos === null && <CatalogSkeleton />}
             {productos !== null && ebooks.length === 0 && (
               <EmptyCard text="Los primeros ebooks están en camino. Anotate abajo y te avisamos apenas salgan." />
